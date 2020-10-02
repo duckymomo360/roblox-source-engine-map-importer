@@ -1,2 +1,2 @@
 # source-mdl-to-roblox-mesh
-only tested on the game "INFRA"
+only tested with the game "INFRA"
