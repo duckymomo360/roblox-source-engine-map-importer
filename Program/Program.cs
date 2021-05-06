@@ -11,11 +11,50 @@ using System.Threading;
 using System.Net;
 using System.Threading.Tasks;
 using System.Text;
+using TgaSharp;
+using System.Drawing;
+using System.Drawing.Imaging;
 
 namespace SourceEngine
 {
 	class Program
 	{
+		static string vtf2tga(string vtf)
+		{
+			string matname = Path.GetFileNameWithoutExtension(vtf.Split("/").Last());
+			string tga = $"tmp\\{matname}.tga";
+			if (File.Exists(tga))
+				return tga;
+			Process.Start("sourcetools\\vtf2tga.exe", $"-i \"{vtf}\" -o \"{tga}\"");
+
+			int giveup = 0;
+			while (!File.Exists(tga) || IsFileLocked(tga))//some vtf files fail to read... (mobile_phone_001.vtf)
+			{
+				if (giveup++ > 20)
+					break;
+				Console.WriteLine("Waiting for " + tga);
+				Thread.Sleep(100);
+			}
+			return tga;
+		}
+
+		static string vtf2png(string vtf)
+		{
+			string matname = Path.GetFileNameWithoutExtension(vtf.Split("/").Last());
+			string png = $"tmp\\{matname}.png";
+			if (File.Exists(png))
+				return png;
+			try
+			{
+				string tga = vtf2tga(vtf);
+				Bitmap bmp = new TGA(tga).ToBitmap();
+				bmp.Save(png, ImageFormat.Png);
+				File.Delete(tga);
+			}
+			catch { }
+			return png;
+		}
+
 		static void Write(Stream stream, object o)
 		{
 			byte[] buffer = new byte[Marshal.SizeOf(o.GetType())];
@@ -25,30 +64,34 @@ namespace SourceEngine
 			gcHandle.Free();
 		}
 
-		static bool IsFileLocked(FileInfo file)
+		static bool IsFileLocked(string file)
 		{
 			try
 			{
-				using (FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.None))
+				using (FileStream stream = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.None))
 				{
 					stream.Close();
 				}
 			}
 			catch (IOException)
 			{
-				//the file is unavailable because it is:
-				//still being written to
-				//or being processed by another thread
-				//or does not exist (has already been processed)
 				return true;
 			}
 
-			//file is not locked
 			return false;
 		}
 
+		public static void WaitForExtract(string file)
+		{
+			while (!File.Exists(file) || IsFileLocked(file))
+			{
+				Console.WriteLine("Waiting for " + file);
+				Thread.Sleep(100);
+			}
+		}
+
 		static string gamefiles = @"D:\Games\INFRA Complete Edition\infra\pak01_dir\";
-		static string robloxContent = @"C:\Users\tosch\AppData\Local\Roblox\Versions\version-4990a8ad45cb49f9\content\sourceimport\";
+		static string robloxContent = @"C:\Users\Quin\AppData\Local\Roblox\Versions\version-4990a8ad45cb49f9\content\sourceimport\";
 
 		public static HttpListener listener;
 		public static string url = "http://localhost:1337/";
@@ -74,10 +117,38 @@ namespace SourceEngine
 						if (files.Length > 0)
 							data = File.ReadAllBytes(files[0]);
 						break;
+					case "/getmat":
+						string mat_dir = "materials/" + req.QueryString["q"] + ".vmt";
+						
+						if (!File.Exists(gamefiles + mat_dir)) // Does this material even exist?
+						{
+							Console.Write("doesnt exist " + gamefiles + mat_dir);
+							data = Encoding.UTF8.GetBytes("bad material " + gamefiles + mat_dir);
+							break;
+						}
+
+						string matname = Path.GetFileNameWithoutExtension(mat_dir.Split("\\").Last());
+						string outfile = $"{matname}.png";
+
+						if (File.Exists(robloxContent + outfile)) // Has this material already been extracted?
+						{
+							data = Encoding.UTF8.GetBytes("rbxasset://sourceimport/" + outfile);
+							break;
+						}
+
+						vmt vmtdata = new vmt(gamefiles + mat_dir);
+						string vtf = vmtdata.basetexture;
+						string png = vtf2png(vtf);
+
+						if (File.Exists(png))//fake png
+							File.Copy(png, robloxContent + outfile, true);
+
+						data = Encoding.UTF8.GetBytes("rbxasset://sourceimport/" + outfile);
+						break;
 					case "/getmodel":
 						string mdl_dir = req.QueryString["q"];
 
-						if (!File.Exists(gamefiles + mdl_dir)) // Does this model even exist?
+						if (!mdl_dir.StartsWith("models/") || !File.Exists(gamefiles + mdl_dir)) // Does this model even exist?
 						{
 							data = Encoding.UTF8.GetBytes("bad model");
 							break;
@@ -87,27 +158,19 @@ namespace SourceEngine
 						string outFileName = mdlname + ".mesh";
 						string outFile = robloxContent + outFileName;
 
-						if (File.Exists(outFile)) // Has this model already been extracted?
+						if (!File.Exists(outFile)) // Has this model already been extracted?
 						{
-							data = Encoding.UTF8.GetBytes("rbxasset://sourceimport/" + outFileName);
-							break;
+							Process.Start("Crowbar.exe", $"-p \"{gamefiles + mdl_dir}\" -o \"tmp\"");
 						}
 
-						Process.Start("Crowbar.exe", $"-p \"{gamefiles + mdl_dir}\" -o \"tmp\\{mdlname}\"");
-						
 						while (!Directory.Exists($"tmp\\{mdlname}"))
 							Thread.Sleep(100);
 
-						while (!File.Exists($"tmp\\{mdlname}\\{mdlname}.smd"))
-							Thread.Sleep(100);
+						WaitForExtract($"tmp\\{mdlname}\\{mdlname}.qc");
+						qc modelInfo = new qc(mdlname);
+						WaitForExtract(modelInfo.smdFile);
 
-						while (IsFileLocked(new FileInfo($"tmp\\{mdlname}\\{mdlname}.smd")))
-                        {
-							Console.WriteLine("File in use");
-							Thread.Sleep(100);
-						}
-
-						List<smdVert> verts = smd.GetSmdData($"tmp\\{mdlname}\\{mdlname}.smd");
+						List<smdVert> verts = smd.GetSmdData(modelInfo.smdFile);
 
 						using (FileStream file = File.Open(outFile, FileMode.Create))
 						{
@@ -133,7 +196,7 @@ namespace SourceEngine
 								vertex.ny = verts[i].NormY;
 								vertex.nz = verts[i].NormZ;
 								vertex.tu = verts[i].U;
-								vertex.tv = verts[i].V;
+								vertex.tv = 1 - verts[i].V;
 								vertex.tw = 0;
 								vertex.r = 255;
 								vertex.g = 255;
@@ -155,9 +218,8 @@ namespace SourceEngine
 
 							writer.Close();
 						}
-						data = Encoding.UTF8.GetBytes("rbxasset://sourceimport/" + outFileName);
+						data = Encoding.UTF8.GetBytes("rbxasset://sourceimport/" + outFileName + "|" + modelInfo.matLocation + mdlname);
 						Console.WriteLine("Exported.");
-						//Directory.Delete("tmp", true);
 
 						break;
 				}
@@ -175,6 +237,9 @@ namespace SourceEngine
 
 		static void Main(string[] args)
 		{
+			if (!Directory.Exists("tmp"))
+				Directory.CreateDirectory("tmp");
+
 			// Create a Http server and start listening for incoming connections
 			listener = new HttpListener();
 			listener.Prefixes.Add(url);
@@ -187,7 +252,7 @@ namespace SourceEngine
 
 			// Close the listener
 			listener.Close();
-
+			
 			Console.ReadKey();
 		}
 	}
