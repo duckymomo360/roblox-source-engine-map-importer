@@ -9,42 +9,55 @@ namespace Program
 	class qc
 	{
 		public string smdFile;
-		public string matLocation;
+		public string cdmaterials; // $cdmaterials defines the folders in which the game will search for the model's materials.
+		public List<List<string>> texturegroup = null;
 
 		public qc(string modelName)
 		{
 			using (StreamReader reader = File.OpenText($"tmp\\{modelName}\\{modelName}.qc"))
 			{
-				bool capturing = false;
-				string current = null;
 				string line;
 				while ((line = reader.ReadLine()) != null)
 				{
 					line = line.Trim();
 
-					if (line.StartsWith("$"))
-					{
-						if (line.IndexOf(" ") > 0)
-							current = line.Substring(1, line.IndexOf(" ") - 1);
-						else
-							current = line.Substring(1);
-					}
-					else if (line == "{")
-					{
-						capturing = true;
-						line = reader.ReadLine();//skip this line for the code ahead
-					}
-					else if (line == "}")
-						capturing = false;
-					
-					if (current == "bodygroup" && capturing)
-					{
-						string smd = line.Split("\"")[1];//whatever lets just assume its this one
-						smdFile = $"tmp\\{modelName}\\{smd}";
-					}
-
 					if (line.StartsWith("$cdmaterials"))
-						matLocation = line.Split("\"")[1];
+					{
+						cdmaterials = line.Split(" ")[1].Replace("\"", "");
+					}
+					else if (line.StartsWith("$bodygroup"))
+					{
+						reader.ReadLine(); // skip "{"
+						line = reader.ReadLine().Trim(); // this is the first body in the group
+						smdFile = line.Split(" ")[1].Replace("\"", "");
+					}
+					else if (line.StartsWith("$texturegroup") && texturegroup == null) // lets parse only one texture group
+					{
+						texturegroup = new List<List<string>>();
+						reader.ReadLine();
+
+						while (true)
+						{
+							line = reader.ReadLine().Trim();
+							if (line == "}")
+								break;
+
+							if (line == "{")
+							{
+								List<string> textures = new List<string>();
+								while (true)
+								{
+									line = reader.ReadLine().Trim();
+									if (line == "}")
+										break;
+
+									textures.Add(line.Replace("\"", ""));
+								}
+
+								texturegroup.Add(textures);
+							}
+						}
+					}
 
 					//Debug.WriteLine($"parsing qc: {current} {capturing}");
 				}
