@@ -1,4 +1,18 @@
 # roblox-source-engine-map-importer
-Import VMF files into Roblox Studio, including Models and Textures.
+Imports VMF files into Roblox Studio, including models and textures
+using a modified version of CloneTrooper1019's "VMF Importer".
+Note that assets are locally hosted and not uploaded, so they won't work outside of Roblox Studio.
 
-Uses modified version of CloneTrooper1019's "VMF Importer".
+# Stuff you need
+Extracted source game VPK dir
+
+# Setup
+1. Build Visual Studio project
+2. Open Plugin\VMFImporter.rbxl in Roblox Studio
+3. Install plugin by going to Workspace > VMF_Importer > Right-Click > Save as Local Plugin > Save
+
+# Usage
+Start the program and use plugin like normal.
+
+# Troubleshooting
+Try deleting %appdata%\ZeqMacaw\Crowbar 0.68\Crowbar Settings.xml
