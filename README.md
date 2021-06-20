@@ -1,4 +1,4 @@
-# source-mdl-to-roblox-mesh
+# roblox-source-engine-map-importer
 Import VMF files into Roblox Studio, including Models and Textures.
 
-Uses CloneTrooper1019's "VMF Importer".
+Uses modified version of CloneTrooper1019's "VMF Importer".
