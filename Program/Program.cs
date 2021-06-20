@@ -160,7 +160,7 @@ namespace SourceEngine
 
 						if (!File.Exists(outFile)) // check if this model has already been extracted
 						{
-							Process.Start("Crowbar.exe", $"-p \"{gamefiles + mdl_dir}\" -o \"tmp\"");
+							Process.Start("Crowbar.exe", $"-p \"{gamefiles + mdl_dir}\" -o \"tmp\\{mdlname}\"");
 						}
 
 						while (!Directory.Exists($"tmp\\{mdlname}"))
@@ -236,7 +236,7 @@ namespace SourceEngine
 				resp.Close();
 			}
 		}
-		
+
 		static void Main(string[] args)
 		{
 			if (!File.Exists("config.txt"))
