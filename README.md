@@ -1,2 +1,4 @@
 # source-mdl-to-roblox-mesh
-only tested with the game "INFRA"
+Import VMF files into Roblox Studio, including Models and Textures.
+
+Uses CloneTrooper1019's "VMF Importer".
