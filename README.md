@@ -1,6 +1,8 @@
+# Notice: No longer maintained !
 # Notice
 This is outdated and has only been tested with the game "Infra".
 Use this instead. https://github.com/MaximumADHD/Source2Roblox
+
 # roblox-source-engine-map-importer
 Imports VMF files into Roblox Studio, including models and textures
 using a modified version of CloneTrooper1019's "VMF Importer".
